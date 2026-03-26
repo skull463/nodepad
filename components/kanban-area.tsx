@@ -156,7 +156,6 @@ export function KanbanArea({
                         onEditAnnotation={onEditAnnotation}
                         onReEnrich={onReEnrich}
                         onToggleCollapse={onToggleCollapse}
-                        onTogglePin={onTogglePin}
                         onToggleSubTask={onToggleSubTask}
                         onDeleteSubTask={onDeleteSubTask}
                         onConnectionHover={handleConnectionHover}

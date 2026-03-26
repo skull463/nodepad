@@ -31,6 +31,8 @@ interface GraphAreaProps {
   onEditAnnotation: (id: string, annotation: string) => void
   hasApiKey: boolean
   onOpenSidebar: () => void
+  highlightedBlockId?: string | null
+  onHighlight?: (id: string | null) => void
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -178,6 +180,8 @@ export function GraphArea({
   onTogglePin,
   onEdit,
   onEditAnnotation,
+  highlightedBlockId,
+  onHighlight,
 }: GraphAreaProps) {
   const containerRef = React.useRef<HTMLDivElement>(null)
   const svgRef       = React.useRef<SVGSVGElement>(null)
@@ -337,19 +341,21 @@ export function GraphArea({
     }
   }, [])
 
-  // ── Hover: connected set ─────────────────────────────────────────────────
-  const connectedToHovered = React.useMemo(() => {
-    if (!hoveredId) return null
-    const ids = new Set<string>([hoveredId])
-    if (nodesRef.current.find(n => n.id === hoveredId)?.isSynthesis) {
+  // ── Hover / index-highlight: connected set ───────────────────────────────
+  const focalId = hoveredId ?? highlightedBlockId ?? null
+
+  const connectedToFocal = React.useMemo(() => {
+    if (!focalId) return null
+    const ids = new Set<string>([focalId])
+    if (nodesRef.current.find(n => n.id === focalId)?.isSynthesis) {
       for (const n of nodesRef.current) ids.add(n.id)
     } else {
-      const b = blocks.find(x => x.id === hoveredId)
+      const b = blocks.find(x => x.id === focalId)
       if (b?.influencedBy) for (const id of b.influencedBy) ids.add(id)
-      for (const x of blocks) if (x.influencedBy?.includes(hoveredId)) ids.add(x.id)
+      for (const x of blocks) if (x.influencedBy?.includes(focalId)) ids.add(x.id)
     }
     return ids
-  }, [hoveredId, blocks])
+  }, [focalId, blocks])
 
   const selectedBlock = React.useMemo(
     () => blocks.find(b => b.id === selectedId) ?? null,
@@ -443,10 +449,9 @@ export function GraphArea({
                 if (s.x == null || t.x == null) return null
 
                 const isSynth = (link as SimLink).isSynthesisLink
-                const dimmed  = hoveredId != null &&
-                  s.id !== hoveredId && t.id !== hoveredId
-
-                const highlighted = hoveredId != null && !dimmed && !isSynth
+                const dimmed = focalId != null &&
+                  s.id !== focalId && t.id !== focalId
+                const highlighted = focalId != null && !dimmed && !isSynth
 
                 const d = isSynth
                   ? `M ${s.x} ${s.y} L ${t.x} ${t.y}`
@@ -479,8 +484,9 @@ export function GraphArea({
 
                 const isSelected  = node.id === selectedId
                 const isHovered   = node.id === hoveredId
-                const isDimmed    = hoveredId != null && !isHovered &&
-                  (!connectedToHovered || !connectedToHovered.has(node.id))
+                const isDimmed = focalId != null && !isHovered &&
+                  node.id !== focalId &&
+                  (!connectedToFocal || !connectedToFocal.has(node.id))
                 const isEnriching = node.block?.isEnriching
                 const isHub       = node.degree >= 3 && !node.isSynthesis
 
@@ -526,6 +532,17 @@ export function GraphArea({
                     }}
                     onMouseLeave={() => { setHoveredId(null); setTooltip(null) }}
                   >
+                    {/* Index-highlight ring */}
+                    {node.id === highlightedBlockId && !isHovered && !isSelected && (
+                      <circle
+                        r={r + 10}
+                        fill="none"
+                        stroke={node.isSynthesis ? "var(--type-thesis)" : accent}
+                        strokeWidth={1.2}
+                        strokeOpacity={0.55}
+                      />
+                    )}
+
                     {/* Selected / hovered ring */}
                     {(isSelected || isHovered) && (
                       <circle

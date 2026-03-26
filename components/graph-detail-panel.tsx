@@ -10,7 +10,7 @@ interface GraphDetailPanelProps {
   allBlocks: TextBlock[]
   onClose: () => void
   onSelectNode: (id: string) => void
-  onReEnrich: (id: string) => void
+  onReEnrich: (id: string, newCategory?: string) => void
   onTogglePin: (id: string) => void
   onEdit: (id: string, text: string) => void
   onEditAnnotation: (id: string, annotation: string) => void
@@ -32,12 +32,24 @@ export function GraphDetailPanel({
   const [draftAnnotation, setDraftAnnotation] = React.useState("")
   const textareaRef = React.useRef<HTMLTextAreaElement>(null)
   const annotationRef = React.useRef<HTMLTextAreaElement>(null)
+  const [isEditingCategory, setIsEditingCategory] = React.useState(false)
+  const [categoryText, setCategoryText] = React.useState(block?.category ?? "")
+  const categoryInputRef = React.useRef<HTMLInputElement>(null)
 
   // Reset edit state when block changes
   React.useEffect(() => {
     setEditingText(false)
     setEditingAnnotation(false)
   }, [block?.id])
+
+  React.useEffect(() => {
+    setCategoryText(block?.category ?? "")
+    setIsEditingCategory(false)
+  }, [block?.id])
+
+  React.useEffect(() => {
+    if (isEditingCategory) categoryInputRef.current?.focus()
+  }, [isEditingCategory])
 
   // Auto-focus textarea when editing starts
   React.useEffect(() => {
@@ -104,6 +116,12 @@ export function GraphDetailPanel({
     setEditingAnnotation(false)
   }
 
+  const commitCategory = () => {
+    const trimmed = categoryText.trim()
+    if (trimmed !== (block?.category ?? "")) onReEnrich(block!.id, trimmed || undefined)
+    setIsEditingCategory(false)
+  }
+
   return (
     <div className="flex h-full flex-col overflow-hidden border-l border-border/60 bg-card">
 
@@ -117,10 +135,28 @@ export function GraphDetailPanel({
           <span className="font-mono text-[10px] font-bold uppercase tracking-wider">
             {config.label}
           </span>
-          {block.category && (
-            <span className="rounded-sm bg-black/10 px-1.5 py-0.5 font-mono text-[8px] font-black uppercase tracking-tighter opacity-60">
-              {block.category}
-            </span>
+          {isEditingCategory ? (
+            <input
+              ref={categoryInputRef}
+              type="text"
+              value={categoryText}
+              onChange={e => setCategoryText(e.target.value)}
+              onBlur={commitCategory}
+              onKeyDown={e => {
+                if (e.key === "Enter") commitCategory()
+                if (e.key === "Escape") { setCategoryText(block.category ?? ""); setIsEditingCategory(false) }
+              }}
+              className="w-24 rounded-sm bg-black/20 px-1.5 py-0.5 font-mono text-[9px] font-bold focus:outline-none border border-white/20 text-white/80"
+              placeholder="topic…"
+            />
+          ) : (
+            <button
+              onClick={() => { setCategoryText(block.category ?? ""); setIsEditingCategory(true) }}
+              className="rounded-sm bg-black/10 px-1.5 py-0.5 font-mono text-[8px] font-black uppercase tracking-tighter opacity-60 hover:opacity-90 transition-opacity cursor-text"
+              title="Click to edit category"
+            >
+              {block.category || "no-topic"}
+            </button>
           )}
         </div>
         <div className="flex items-center gap-1.5 flex-shrink-0" style={{ color: "inherit" }}>

@@ -888,6 +888,8 @@ export default function Page() {
                   onEditAnnotation={editAnnotation}
                   hasApiKey={!!settings.apiKey}
                   onOpenSidebar={() => { setIsSidebarOpen(true); setJumpToSettings(true) }}
+                  highlightedBlockId={highlightedBlockId}
+                  onHighlight={setHighlightedBlockId}
                 />
               )
             ) : (
