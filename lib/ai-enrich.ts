@@ -4,6 +4,47 @@ import { detectContentType } from "@/lib/detect-content-type"
 import { loadAIConfig, getBaseUrl, getProviderHeaders, getModelsForProvider } from "@/lib/ai-settings"
 import type { ContentType } from "@/lib/content-types"
 
+// ── Provider error parser ─────────────────────────────────────────────────────
+
+/** Parses an error response from any OpenAI-compatible provider into a concise
+ *  human-readable message. Handles OpenRouter-specific metadata (upstream
+ *  provider name, rate limit type) and common HTTP error codes. */
+export async function parseProviderError(response: Response): Promise<string> {
+  let errObj: { message?: string; metadata?: { provider_name?: string } } | undefined
+  try {
+    const body = await response.json()
+    errObj = body?.error
+  } catch { /* couldn't parse JSON — fall through */ }
+
+  const providerName = errObj?.metadata?.provider_name
+
+  switch (response.status) {
+    case 401:
+      return "Invalid or missing API key. Check your key in Settings."
+    case 402:
+      return "Insufficient credits. Add credits to your account or switch to a free model."
+    case 403:
+      return "Content flagged by the provider's safety filter."
+    case 404:
+      return "This model is no longer available. Switch to another model in Settings."
+    case 408:
+      return "Request timed out. Try again."
+    case 429:
+      if (providerName) {
+        return `${providerName} is rate-limiting free requests right now. Retry later or switch to a paid model.`
+      }
+      return "Too many requests. Slow down and try again."
+    case 502:
+    case 503:
+      if (providerName) {
+        return `${providerName} is temporarily unavailable. Try again or switch models.`
+      }
+      return "The AI provider is temporarily unavailable. Try again."
+    default:
+      return errObj?.message ?? `Request failed (${response.status}). Check your settings.`
+  }
+}
+
 // ── Language detection ────────────────────────────────────────────────────────
 
 const ENGLISH_STOPWORDS = new Set([
@@ -300,12 +341,18 @@ You have live web access. For this note type, include 1–2 real source citation
   const langDirective = `[RESPOND IN: ${language}]\n`
   const userMessage = `${langDirective}<note_to_enrich>${safeText}</note_to_enrich>${urlContext}${categoryContext}${forcedTypeContext}${globalContext}`
 
+  // Cap output tokens: prevents OpenRouter from using a high provider default
+  // (e.g. 16384) that exceeds low-credit/free-tier balances and triggers 402.
+  // Enrichment JSON is compact — annotation ~120 words plus fields fits in 1200.
+  const MAX_ENRICH_OUTPUT_TOKENS = 1200
+
   const baseUrl = getBaseUrl(config)
   const response = await fetch(`${baseUrl}/chat/completions`, {
     method: "POST",
     headers: getProviderHeaders(config),
     body: JSON.stringify({
       model,
+      max_tokens: MAX_ENRICH_OUTPUT_TOKENS,
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user",   content: userMessage },
@@ -325,8 +372,7 @@ You have live web access. For this note type, include 1–2 real source citation
   })
 
   if (!response.ok) {
-    const err = await response.text()
-    throw new Error(`AI enrich error (${config.provider}) ${response.status}: ${err}`)
+    throw new Error(await parseProviderError(response))
   }
 
   let data: Record<string, unknown>

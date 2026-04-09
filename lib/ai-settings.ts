@@ -86,6 +86,21 @@ export const AI_MODELS: AIModel[] = [
     description: "Fast, excellent structured outputs",
     supportsGrounding: false,
   },
+  // ── Free tier (no credits required, ~200 req/day limit) ─────────────────
+  {
+    id: "nvidia/nemotron-3-nano-30b-a3b:free",
+    label: "Nemotron 30B · Free",
+    shortLabel: "Nemotron",
+    description: "Free · no credits · ~200 req/day · Nvidia-hosted",
+    supportsGrounding: false,
+  },
+  {
+    id: "nvidia/nemotron-3-super-120b-a12b:free",
+    label: "Nemotron 120B · Free",
+    shortLabel: "Nemotron",
+    description: "Free · no credits · ~200 req/day · Nvidia-hosted · MoE",
+    supportsGrounding: false,
+  },
 ]
 
 export const OPENAI_MODELS: AIModel[] = [
@@ -258,9 +273,11 @@ export function useAISettings() {
     apiKey: "", modelId: DEFAULT_MODEL_ID, webGrounding: false,
     provider: DEFAULT_PROVIDER, customBaseUrl: "",
   })
+  const [isHydrated, setIsHydrated] = useState(false)
 
   useEffect(() => {
     setSettings(loadSettings())
+    setIsHydrated(true)
   }, [])
 
   const updateSettings = useCallback((patch: Partial<AISettings>) => {
@@ -290,5 +307,5 @@ export function useAISettings() {
     supportsGrounding: false,
   }
 
-  return { settings, updateSettings, resolvedModelId, currentModel, models }
+  return { settings, updateSettings, resolvedModelId, currentModel, models, isHydrated }
 }

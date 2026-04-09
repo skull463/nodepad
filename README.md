@@ -58,6 +58,13 @@ Access to all major models through a single key. Free credits available at [open
 | `deepseek/deepseek-chat` | Fast, cost-effective. |
 | `mistralai/mistral-small-3.2` | Lightweight, fast. |
 
+**Free tier** — no credits required, ~200 req/day limit, Nvidia-hosted, no web grounding:
+
+| Model | Notes |
+|---|---|
+| `nvidia/nemotron-3-nano-30b-a3b:free` | Nemotron 30B — fast, reliable. |
+| `nvidia/nemotron-3-super-120b-a12b:free` | Nemotron 120B MoE — higher quality, same speed. |
+
 ### OpenAI *(direct)*
 Use your OpenAI API key directly. Web grounding via search-preview models.
 
