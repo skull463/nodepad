@@ -118,11 +118,7 @@ Next.js · React 19 · TypeScript · Tailwind CSS v4 · D3.js · Framer Motion
 
 ## Contributing
 
-Pull requests welcome. Three PRs have already shaped the project:
-
-- **PR #1** by [@matwate](https://github.com/matwate) — OpenAI provider support, multi-provider architecture
-- **PR #2** by [@desireco](https://github.com/desireco) — Z.ai provider, robust JSON parsing for truncated responses
-- **PR #23** by [@aayushprsingh](https://github.com/aayushprsingh) — Custom base URL for local/self-hosted models, IPv6 SSRF guard fix
+Pull requests are welcome. I go through them regularly — some will be merged, others may stay open or be closed if they don't fit the direction of the project. No guarantees, but good work gets noticed.
 
 ---
 
