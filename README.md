@@ -118,7 +118,7 @@ Next.js · React 19 · TypeScript · Tailwind CSS v4 · D3.js · Framer Motion
 
 ## Contributing
 
-Pull requests are welcome. I go through them regularly — some will be merged, others may stay open or be closed if they don't fit the direction of the project. No guarantees, but good work gets noticed.
+Pull requests are welcome. I go through them regularly. Some will be merged, others may stay open.
 
 ---
 
