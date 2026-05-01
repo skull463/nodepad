@@ -180,55 +180,6 @@ export function getModelsForProvider(provider: AIProvider): AIModel[] {
   return AI_MODELS // openrouter + safe fallback for any stale localStorage value
 }
 
-export interface FetchedModel {
-  id: string
-  name?: string
-  description?: string
-  owned_by?: string
-  isFree?: boolean
-  contextLength?: number
-}
-
-export async function fetchModelsFromProvider(
-  provider: AIProvider,
-  apiKey: string,
-  customBaseUrl?: string,
-): Promise<FetchedModel[]> {
-  const baseUrl = customBaseUrl?.trim() || getPreset(provider).baseUrl
-  const headers: Record<string, string> = {
-    "Authorization": `Bearer ${apiKey}`,
-  }
-  if (provider === "openrouter") {
-    headers["HTTP-Referer"] = "https://nodepad.space"
-    headers["X-Title"] = "nodepad"
-  }
-  const res = await fetch(`${baseUrl}/models`, { headers })
-  if (!res.ok) throw new Error(`Failed to fetch models (${res.status})`)
-  const data = await res.json()
-  const items: Array<{
-    id: string
-    name?: string
-    description?: string
-    owned_by?: string
-    pricing?: { prompt?: string; completion?: string }
-    context_length?: number
-  }> = data?.data ?? []
-  return items.map(m => {
-    const isFree = m.pricing
-      ? (m.pricing.prompt === "0" || m.pricing.prompt === "0.0") &&
-        (m.pricing.completion === "0" || m.pricing.completion === "0.0")
-      : false
-    return {
-      id: m.id,
-      name: m.name,
-      description: m.description,
-      owned_by: m.owned_by,
-      isFree,
-      contextLength: m.context_length,
-    }
-  })
-}
-
 export const DEFAULT_MODEL_ID = "openai/gpt-4o"
 export const DEFAULT_PROVIDER: AIProvider = "openrouter"
 
