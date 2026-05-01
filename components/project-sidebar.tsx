@@ -18,13 +18,16 @@ import {
   EyeOff,
   Save,
   FolderInput,
+  Search,
 } from "lucide-react"
 import {
   AI_PROVIDER_PRESETS,
   getModelsForProvider,
   getPreset,
+  fetchModelsFromProvider,
   type AISettings,
   type AIProvider,
+  type FetchedModel,
 } from "@/lib/ai-settings"
 
 interface Project {
@@ -73,6 +76,10 @@ export function ProjectSidebar({
   const [showKey, setShowKey] = useState(false)
   const [modelOpen, setModelOpen] = useState(false)
   const [providerOpen, setProviderOpen] = useState(false)
+  const [fetchedModels, setFetchedModels] = useState<FetchedModel[]>([])
+  const [fetchingModels, setFetchingModels] = useState(false)
+  const [fetchError, setFetchError] = useState<string | null>(null)
+  const [modelSearch, setModelSearch] = useState("")
   // local draft for settings (only save on "Save")
   const [draft, setDraft] = useState<AISettings>(aiSettings)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -96,6 +103,39 @@ export function ProjectSidebar({
       onSettingsOpened?.()
     }
   }, [openToSettings])
+
+  // Auto-fetch models when provider + key are available (debounced)
+  useEffect(() => {
+    if (!showSettings || !draft.apiKey.trim()) {
+      setFetchedModels([])
+      setFetchingModels(false)
+      setFetchError(null)
+      return
+    }
+    let cancelled = false
+    const timer = setTimeout(() => {
+      setFetchingModels(true)
+      setFetchError(null)
+      fetchModelsFromProvider(draft.provider, draft.apiKey.trim(), draft.customBaseUrl)
+        .then(models => {
+          if (!cancelled) {
+            setFetchedModels(models.sort((a, b) => a.id.localeCompare(b.id)))
+            setFetchingModels(false)
+          }
+        })
+        .catch(err => {
+          if (!cancelled) {
+            setFetchedModels([])
+            setFetchError(err instanceof Error ? err.message : "Failed to fetch models")
+            setFetchingModels(false)
+          }
+        })
+    }, 600)
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [showSettings, draft.provider, draft.apiKey, draft.customBaseUrl])
 
   const handleRename = (id: string) => {
     if (editName.trim()) onRenameProject(id, editName.trim())
@@ -136,13 +176,13 @@ export function ProjectSidebar({
   return (
     <div
       style={{ 
-        width: isOpen ? 240 : 0,
+        width: isOpen ? (showSettings ? 320 : 240) : 0,
         opacity: isOpen ? 1 : 0,
         visibility: isOpen ? "visible" : "hidden"
       }}
       className="relative z-50 transition-all duration-200 ease-in-out overflow-hidden border-r border-border bg-black/20 backdrop-blur-3xl flex flex-col h-full"
     >
-      <div className="w-[240px] flex flex-col h-full">
+      <div style={{ width: showSettings ? 320 : 240 }} className="flex flex-col h-full">
         {/* Header */}
         <div className="flex h-10 items-center justify-between border-b border-border bg-card/5 backdrop-blur-md px-3 py-1.5 shrink-0">
           <div className="flex items-center gap-2.5">
@@ -420,9 +460,9 @@ export function ProjectSidebar({
                       />
                     </div>
                   ) : (
-                    <div className="relative">
+                    <div>
                       <button
-                        onClick={() => setModelOpen(v => !v)}
+                        onClick={() => { setModelOpen(v => { if (v) setModelSearch(""); return !v }) }}
                         className="flex w-full items-center justify-between rounded-md border border-white/10 bg-white/[0.04] px-2.5 py-2 text-left hover:bg-white/[0.07] focus:outline-none transition-colors"
                       >
                         <div>
@@ -434,33 +474,130 @@ export function ProjectSidebar({
                       <AnimatePresence>
                         {modelOpen && (
                           <motion.div
-                            initial={{ opacity: 0, y: -4 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -4 }}
-                            transition={{ duration: 0.1 }}
-                            className="absolute top-full left-0 right-0 z-20 mt-1 overflow-hidden rounded-md border border-white/10 bg-[#0d0d10] shadow-xl"
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: "auto" }}
+                            exit={{ opacity: 0, height: 0 }}
+                            transition={{ duration: 0.15 }}
+                            className="mt-1 overflow-hidden rounded-md border border-white/10 bg-[#0d0d10] shadow-xl"
                           >
-                            {models.map(model => (
-                              <button
-                                key={model.id}
-                                onClick={() => {
-                                  setDraft(d => ({ ...d, modelId: model.id, webGrounding: model.supportsGrounding ? d.webGrounding : false }))
-                                  setModelOpen(false)
-                                }}
-                                className="flex w-full items-center gap-2.5 px-2.5 py-2 text-left hover:bg-white/5 transition-colors"
-                              >
-                                <div className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border ${
-                                  draft.modelId === model.id ? "border-primary bg-primary/20" : "border-white/10"
-                                }`}>
-                                  {draft.modelId === model.id && <Check className="h-2.5 w-2.5 text-primary" />}
+                            {/* Search input */}
+                            <div className="flex items-center gap-2 px-2.5 py-2 border-b border-white/5">
+                              <Search className="h-3 w-3 shrink-0 text-muted-foreground/50" />
+                              <input
+                                type="text"
+                                value={modelSearch}
+                                onChange={e => setModelSearch(e.target.value)}
+                                placeholder="Search models…"
+                                className="flex-1 bg-transparent font-sans text-xs text-foreground outline-none placeholder:text-muted-foreground/40"
+                                autoFocus
+                                spellCheck={false}
+                              />
+                            </div>
+                            <div className="max-h-[280px] overflow-y-auto custom-scrollbar">
+                              {/* Preset / recommended models */}
+                              {models
+                                .filter(model => !modelSearch || model.label.toLowerCase().includes(modelSearch.toLowerCase()) || model.id.toLowerCase().includes(modelSearch.toLowerCase()))
+                                .map(model => (
+                                  <button
+                                    key={model.id}
+                                    onClick={() => {
+                                      setDraft(d => ({ ...d, modelId: model.id, webGrounding: model.supportsGrounding ? d.webGrounding : false }))
+                                      setModelOpen(false)
+                                      setModelSearch("")
+                                    }}
+                                    className="flex w-full items-center gap-2.5 px-2.5 py-2 text-left hover:bg-white/5 transition-colors"
+                                  >
+                                    <div className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border ${
+                                      draft.modelId === model.id ? "border-primary bg-primary/20" : "border-white/10"
+                                    }`}>
+                                      {draft.modelId === model.id && <Check className="h-2.5 w-2.5 text-primary" />}
+                                    </div>
+                                    <div>
+                                      <div className="font-sans text-[11px] font-bold text-foreground">{model.label}</div>
+                                      <div className="font-sans text-[9px] text-muted-foreground">{model.description}</div>
+                                    </div>
+                                    {model.supportsGrounding && (draft.provider === "openrouter" || draft.provider === "openai") && <Globe className="ml-auto h-3 w-3 shrink-0 text-primary/50" />}
+                                  </button>
+                                ))}
+
+                              {/* Fetched models from provider API */}
+                              {fetchedModels.length > 0 && (
+                                <>
+                                  <div className="px-2.5 py-1.5 border-t border-white/5">
+                                    <span className="font-sans text-[8px] font-semibold uppercase tracking-widest text-muted-foreground/50">
+                                      All available models ({fetchedModels.length})
+                                    </span>
+                                  </div>
+                                  {fetchedModels
+                                    .filter(fm => !models.some(m => m.id === fm.id))
+                                    .filter(fm => {
+                                      if (!modelSearch) return true
+                                      const q = modelSearch.toLowerCase()
+                                      return fm.id.toLowerCase().includes(q) ||
+                                        (fm.name && fm.name.toLowerCase().includes(q)) ||
+                                        (fm.description && fm.description.toLowerCase().includes(q))
+                                    })
+                                    .map(fm => {
+                                      const displayName = fm.name || fm.id.split("/").pop() || fm.id
+                                      const shortDesc = fm.description
+                                        ? fm.description.length > 80
+                                          ? fm.description.slice(0, 80).trimEnd() + "…"
+                                          : fm.description
+                                        : null
+                                      return (
+                                        <button
+                                          key={fm.id}
+                                          onClick={() => {
+                                            setDraft(d => ({ ...d, modelId: fm.id, webGrounding: false }))
+                                            setModelOpen(false)
+                                            setModelSearch("")
+                                          }}
+                                          className="flex w-full items-center gap-2.5 px-2.5 py-1.5 text-left hover:bg-white/5 transition-colors"
+                                        >
+                                          <div className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border ${
+                                            draft.modelId === fm.id ? "border-primary bg-primary/20" : "border-white/10"
+                                          }`}>
+                                            {draft.modelId === fm.id && <Check className="h-2.5 w-2.5 text-primary" />}
+                                          </div>
+                                          <div className="min-w-0 flex-1">
+                                            <div className="flex items-center gap-1.5">
+                                              <span className="font-sans text-[11px] font-bold text-foreground">{displayName}</span>
+                                              {fm.isFree && (
+                                                <span className="font-sans text-[7px] font-bold uppercase tracking-wider text-primary bg-primary/15 px-1 py-px rounded">Free</span>
+                                              )}
+                                            </div>
+                                            {shortDesc && (
+                                              <div className="font-sans text-[9px] text-muted-foreground leading-snug mt-0.5">{shortDesc}</div>
+                                            )}
+                                          </div>
+                                        </button>
+                                      )
+                                    })}
+                                </>
+                              )}
+
+                              {fetchingModels && (
+                                <div className="px-2.5 py-2 flex items-center gap-2">
+                                  <span className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+                                  <span className="font-sans text-[9px] text-muted-foreground">Loading models…</span>
                                 </div>
-                                <div>
-                                  <div className="font-mono text-[10px] font-bold text-foreground">{model.label}</div>
-                                  <div className="font-mono text-[9px] text-muted-foreground">{model.description}</div>
+                              )}
+                              {fetchError && !fetchingModels && (
+                                <div className="px-2.5 py-2 border-t border-white/5">
+                                  <span className="font-sans text-[9px] text-destructive/70">{fetchError}</span>
                                 </div>
-                                {model.supportsGrounding && (draft.provider === "openrouter" || draft.provider === "openai") && <Globe className="ml-auto h-3 w-3 shrink-0 text-primary/50" />}
-                              </button>
-                            ))}
+                              )}
+                              {!fetchingModels && modelSearch && (() => {
+                                const q = modelSearch.toLowerCase()
+                                const presetHits = models.filter(m => m.label.toLowerCase().includes(q) || m.id.toLowerCase().includes(q)).length
+                                const fetchedHits = fetchedModels.filter(fm => !models.some(m => m.id === fm.id)).filter(fm => fm.id.toLowerCase().includes(q) || (fm.name && fm.name.toLowerCase().includes(q)) || (fm.description && fm.description.toLowerCase().includes(q))).length
+                                return presetHits === 0 && fetchedHits === 0
+                              })() && (
+                                <div className="px-2.5 py-2">
+                                  <span className="font-sans text-[9px] text-muted-foreground/50">No models match &ldquo;{modelSearch}&rdquo;</span>
+                                </div>
+                              )}
+                            </div>
                           </motion.div>
                         )}
                       </AnimatePresence>
